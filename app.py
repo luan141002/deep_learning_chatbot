@@ -1,5 +1,5 @@
-
-import nltk
+#%% import library
+import nltk #Library for handle language
 from nltk.stem import WordNetLemmatizer
 lemmatizer = WordNetLemmatizer()
 import pickle
@@ -7,14 +7,14 @@ import numpy as np
 
 #from keras.models import load_model
 from tensorflow.keras.models import load_model
-model = load_model('chatbot_model.h5')
+model = load_model('fine_tuned_chatbot_model.h5')
 import json
 import random
 intents = json.loads(open('intents.json', encoding="utf8").read())
 words = pickle.load(open('words.pkl','rb'))
 classes = pickle.load(open('classes.pkl','rb'))
 
-
+#%%
 def clean_up_sentence(sentence):
     sentence_words = nltk.word_tokenize(sentence)
     sentence_words = [lemmatizer.lemmatize(word.lower()) for word in sentence_words]
@@ -50,13 +50,16 @@ def predict_class(sentence, model):
     return return_list
 
 def getResponse(ints, intents_json):
-    tag = ints[0]['intent']
-    list_of_intents = intents_json['intents']
-    for i in list_of_intents:
-        if(i['tag']== tag):
-            result = random.choice(i['responses'])
-            break
-    return result
+    if ints:  # Kiểm tra xem ints có phần tử nào không
+        tag = ints[0]['intent']
+        list_of_intents = intents_json['intents']
+        for i in list_of_intents:
+            if(i['tag']== tag):
+                result = random.choice(i['responses'])
+                break
+        return result
+    else:
+        return "Sorry, I didn't understand that."
 
 def chatbot_response(msg):
     ints = predict_class(msg, model)

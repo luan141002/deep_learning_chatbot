@@ -1,3 +1,5 @@
+
+#%% import libraries
 import nltk
 nltk.download('punkt')
 nltk.download('wordnet')
@@ -5,21 +7,24 @@ from nltk.stem import WordNetLemmatizer
 lemmatizer = WordNetLemmatizer()
 import json
 import pickle
-
+from keras import regularizers, models, layers, optimizers
+from keras.callbacks import EarlyStopping
+import tensorflow as tf
 import numpy as np
 from keras.models import Sequential
-from keras.layers import Dense, Activation, Dropout
+from keras.layers import Dense, Activation, Dropout, LSTM, LeakyReLU
 from keras.optimizers import SGD
 import random
-
+#%% Declare essential variables and import datasets
 words=[]
 classes = []
 documents = []
-ignore_words = ['?', '!']
-data_file = open('intents.json').read()
-intents = json.loads(data_file)
+ignore_words = ['?', '!', '@', '$']
+# Open the file with explicit encoding
+with open('intents.json', 'r', encoding='utf-8') as data_file:
+    intents = json.load(data_file)
 
-
+#%% Language Handling and labeling all word
 for intent in intents['intents']:
     for pattern in intent['patterns']:
 
@@ -38,17 +43,17 @@ words = sorted(list(set(words)))
 
 classes = sorted(list(set(classes)))
 
-print (len(documents), "documents")
+print(len(documents), "documents", documents)
 
-print (len(classes), "classes", classes)
+print(len(classes), "classes", classes)
 
-print (len(words), "unique lemmatized words", words)
+print(len(words), "unique lemmatized words", words)
 
 
 pickle.dump(words,open('words.pkl','wb'))
 pickle.dump(classes,open('classes.pkl','wb'))
 
-# initializing training data
+#%% initializing training data
 training = []
 output_empty = [0] * len(classes)
 for doc in documents:
@@ -69,28 +74,78 @@ for doc in documents:
     training.append([bag, output_row])
 # shuffle our features and turn into np.array
 random.shuffle(training)
-training = np.array(training)
-# create train and test lists. X - patterns, Y - intents
+training =  np.asarray(training, dtype="object")
 train_x = list(training[:,0])
 train_y = list(training[:,1])
+
+# Test Data (20%)
+test_size = int(len(train_x) * 0.2)
+
+# Divide data into test and train data
+test_x = train_x[-test_size:]
+test_y = train_y[-test_size:]
+
+# Get train data
+train_x = train_x[:-test_size]
+train_y = train_y[:-test_size]
 print("Training data created")
 
 
-# Create model - 3 layers. First layer 128 neurons, second layer 64 neurons and 3rd output layer contains number of neurons
+#%% Create model - 3 layers. First layer 128 neurons, second layer 64 neurons and 3rd output layer contains number of neurons
 # equal to number of intents to predict output intent with softmax
-model = Sequential()
-model.add(Dense(128, input_shape=(len(train_x[0]),), activation='relu'))
-model.add(Dropout(0.5))
-model.add(Dense(64, activation='relu'))
-model.add(Dropout(0.5))
-model.add(Dense(len(train_y[0]), activation='softmax'))
 
-# Compile model. Stochastic gradient descent with Nesterov accelerated gradient gives good results for this model
-sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
+model = models.Sequential([
+    layers.Dense(512, input_shape=(len(train_x[0]),), activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(384, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(256, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(128, activation='relu'),  # Additional layer
+    layers.Dropout(0.5),
+    layers.Dense(len(train_y[0]), activation='softmax')
+])
+#%% Compile model. Stochastic gradient descent with Nesterov accelerated gradient gives good results for this model
 
-#fitting and saving the model
-hist = model.fit(np.array(train_x), np.array(train_y), epochs=200, batch_size=5, verbose=1)
-model.save('chatbot_model.h5', hist)
+learning_rate = 0.001
+momentum = 0.9
+nesterov = True
+# optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate, momentum=momentum, nesterov=nesterov)
+model.compile(loss = "categorical_crossentropy",
+              optimizer = optimizers.Adam(learning_rate=0.001), #Stochastic Gradient Descent
+              metrics = ["accuracy"])
 
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)              
+#%% fitting and saving the model
+hist = model.fit(
+    np.array(train_x), np.array(train_y),
+      epochs=250,
+        batch_size=24,
+          verbose=1,
+          callbacks=[early_stopping])
+model.save('chatbot_model_5.h5', hist)
+# Evaluate model
+loss, accuracy = model.evaluate(np.array(test_x), np.array(test_y))
+print("Loss:", loss)
+print("Accuracy:", accuracy)
 print("model created")
+
+ #%%
+from tensorflow.keras.models import load_model
+# Load the pre-trained model
+chatbot_model = load_model('chatbot_model_4.h5')
+new_train_x = train_x[:-test_size]
+new_train_y = train_y[:-test_size]
+
+# Fine-tuning: Continue training on new data
+fine_tuning_hist = chatbot_model.fit(new_train_x, new_train_y, epochs=50, batch_size=5, verbose=1)
+
+# Save the fine-tuned model
+chatbot_model.save('fine_tuned_chatbot_model.h5')
+
+# %%
+loss, accuracy = chatbot_model.evaluate(np.array(test_x), np.array(test_y))
+print("Loss:", loss)
+print("Accuracy:", accuracy)
+
+# %%

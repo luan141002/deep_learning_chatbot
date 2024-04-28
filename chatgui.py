@@ -10,7 +10,7 @@ from tensorflow.keras.models import load_model
 model = load_model('chatbot_model.h5')
 import json
 import random
-intents = json.loads(open('intents.json').read())
+intents = json.loads(open('intents.json', encoding="utf8").read())
 words = pickle.load(open('words.pkl','rb'))
 classes = pickle.load(open('classes.pkl','rb'))
 
@@ -50,13 +50,16 @@ def predict_class(sentence, model):
     return return_list
 
 def getResponse(ints, intents_json):
-    tag = ints[0]['intent']
-    list_of_intents = intents_json['intents']
-    for i in list_of_intents:
-        if(i['tag']== tag):
-            result = random.choice(i['responses'])
-            break
-    return result
+    if ints:  # Kiểm tra xem ints có phần tử nào không
+        tag = ints[0]['intent']
+        list_of_intents = intents_json['intents']
+        for i in list_of_intents:
+            if(i['tag']== tag):
+                result = random.choice(i['responses'])
+                break
+        return result
+    else:
+        return "Sorry, I didn't understand that."
 
 def chatbot_response(msg):
     ints = predict_class(msg, model)
