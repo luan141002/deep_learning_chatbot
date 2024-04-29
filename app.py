@@ -69,11 +69,11 @@ def chatbot_response(msg):
 
 ''' Flask code '''
 
-from flask import Flask, jsonify
-
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 @app.route("/", methods = ['GET', 'POST'])
 def hello():
     return jsonify({"key" : "home page value"})
@@ -92,17 +92,22 @@ def decrypt(msg):
 #here we will send a string from the client and the server will return another
 #string with som modification
 #creating a url dynamically
-@app.route('/home/<name>') 
-def hello_name(name):
+@app.route('/home', methods=['POST']) 
+def hello_name():
+    # Get the request data
+    data = request.json  # Extract JSON data from the request
     
-    #dec_msg is the real question asked by the user
-    dec_msg = decrypt(name)
-    
-    #get the response from the ML model & dec_msg as the argument
-    response = chatbot_response(dec_msg)
-    
-    #creating a json object
-    json_obj = jsonify({"top" : {"res" : response}})
+    # Check if data contains 'message'
+    if 'message' in data:
+        dec_msg = data['message']  # User input from the frontend
+        
+        # Get the response from the ML model
+        response = chatbot_response(dec_msg)
+        
+        # Create a JSON object with the response
+        json_obj = jsonify({"top": {"res": response}})
+    else:
+        json_obj = jsonify({"error": "No message provided."})
     
     return json_obj
 
