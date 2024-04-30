@@ -7,7 +7,7 @@ import numpy as np
 
 #from keras.models import load_model
 from tensorflow.keras.models import load_model
-model = load_model('fine_tuned_chatbot_model.h5')
+model = load_model('chatbot_model_5.h5')
 import json
 import random
 intents = json.loads(open('intents.json', encoding="utf8").read())
